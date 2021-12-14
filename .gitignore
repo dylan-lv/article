@@ -1,0 +1,9 @@
+.DS_Store
+packages/website/src/config/config.default
+node_modules
+/dist
+
+origin.*.png
+origin.*.jpg
+*.origin.png
+*.origin.jpg
