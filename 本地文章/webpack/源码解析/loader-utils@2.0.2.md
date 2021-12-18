@@ -254,7 +254,43 @@ module.exports = getOptions;
 
 由于webpack在将模块路径转换为模块ID之前计算哈希，因此我们必须避免绝对路径，以确保不同编译之间的哈希一致。
 
-- 
+- 如果请求和模块位于同一硬盘驱动器上，则将绝对路径解析为相对路径
+- 如果请求和模块位于同一硬盘驱动器上，将 `\` 替换为 `/`
+- 如果请求和模块位于不同的硬盘驱动器上，则不会更改路径
+- 对结果使用  JSON.stringify
+
+
+
+**示例：**
+
+```js
+loaderUtils.stringifyRequest(this, "./test.js");
+// "\"./test.js\""
+
+loaderUtils.stringifyRequest(this, ".\\test.js");
+// "\"./test.js\""
+
+loaderUtils.stringifyRequest(this, "test");
+// "\"test\""
+
+loaderUtils.stringifyRequest(this, "test/lib/index.js");
+// "\"test/lib/index.js\""
+
+loaderUtils.stringifyRequest(this, "otherLoader?andConfig!test?someConfig");
+// "\"otherLoader?andConfig!test?someConfig\""
+
+loaderUtils.stringifyRequest(this, require.resolve("test"));
+// "\"../node_modules/some-loader/lib/test.js\""
+
+loaderUtils.stringifyRequest(this, "C://module\\test.js");
+// "\"../../test.js\""   =>  windows下，请求和module位于统一驱动下
+// "\"C:\\nodule\\test.js\""    =>    windows下，请求和module位于不同驱动下
+
+loaderUtils.stringifyRequest(this, "\\\\network-drive\\test.js");
+// "\"\\\\network-drive\\\\test.js\""    =>  windows下，请求和module位于不同驱动
+```
+
+
 
 
 
