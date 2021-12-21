@@ -366,19 +366,213 @@ function isRelativePath(str) {
 
 ### 3、stringifyRequest
 
+```js
+function stringifyRequest(loaderContext, request) {
+  const splitted = request.split('!');
+  // this.context：模块所在的目录。可以用作解析其他模块路径的上下文。
+  const context = loaderContext.context || (loaderContext.options && loaderContext.options.context);
+
+  return JSON.stringify(
+    splitted
+      .map(part => {
+        // 首先，将单独路径与查询分开，因为查询可能再次包含路径
+        const splittedPart = part.match(/^(.*?)(\?.*)/);
+        const query = splittedPart ? splittedPart[2] : ''; // 拿到？和后面的内容（参数）
+        let singlePath = splittedPart ? splittedPart[1] : part; // ？前面的内容（路径）
+
+        if(isAbsolutePath(singlePath) && context) {
+          // path.relative(from, to) 方法根据当前工作目录返回从 from 到 to 的相对路径
+          singlePath = path.relative(context, singlePath);
+
+          if(isAbsolutePath(singlePath)) {
+            // 如果 singlePath 仍然匹配绝对路径，则 singlePath位于与上下文不同的驱动器上。
+            // 在这种情况下，我们将其保留为“平台特定”，不更换任何分隔符
+            return singlePath + query;
+          }
+
+          if(isRelativePath(singlePath) === false) {
+            // 确保相对路径以 “./” 开头，否则它将进入模块目录查找（如node_modules）
+            singlePath = './' + singlePath;
+          }
+        }
+
+        return singlePath.replace(/\\/g, '/') + query;
+      })
+      .join('!')
+  )
+}
+```
 
 
 
 
 
+## 四、isUrlRequest
+
+是否是有效的url请求
+
+```js
+const path = require('path');
+
+function isUrlRequest(url, root) {
+  // 如果出现以下情况，则 url 不是请求
+
+  // 1.它是一个绝对 url，并且不是 windows 下的路径(如："C:/dir/file")
+  if(/^[a-z][a-z0-9+.-]*:/i.test(url) && !path.win32.isAbsolute(url)) {
+    return false;
+  }
+
+  // 2.它是一个相对协议： 以 // 开头
+  if(/^\/\//.test(url)) {
+    return false;
+  }
+
+  // 3.它像是某个模板的url
+  if(/^[{}[\]#*;,'§$%&(=?`´^°<>]/.test(url)) {
+    return false;
+  }
+
+  // 4.如果未设置 root，并且它是相对root的“相对请求”，则它也不是请求
+  if((root === undefined || root === false) && /^\//.test(url)) {
+    return false;
+  }
+
+  return true;
+}
+
+module.exports = isUrlRequest;
+```
 
 
 
+## 五、urlToRequest
+
+将某些资源URL转换为webpack模块请求
+
+- 在调用 `urlToRequest` 之前，你需要先调用 `isUrlRequest` 以确保它是可请求的 url
+
+```js
+const url = "path/to/module.js";
+
+if(loaderUtils.isUrlRequest(url)) {
+  // 可请求 url 的逻辑
+  const request = loaderUtils.urlToRequest(url);
+} else {
+  // 不可请求 url 的逻辑
+}
+```
+
+**示例：**
+
+```js
+const url = "path/to/module.js";
+const request = loaderUtils.urlToRequest(url); // "./path/to/module.js"
+```
+
+**模块URL：**
+
+任何包含 ~ 的URL都将被解释为模块请求。 ~ 之后的任何内容都将被视为请求路径。
+
+```js
+const url = "~path/to/module.js";
+const request = loaderUtils.urlToRequest(url); // "path/to/module.js"
+```
+
+**相对于root的URL**
+
+相对于root的URL（以 / 开头）可以使用 root 参数相对于某个任意路径解析。
+
+```js
+const url = "/path/to/module.js";
+const root = "./root";
+const request = loaderUtils.urlToRequest(url, root); // "./root/path/to/module.js"
+```
+
+将相对root的 url 转换为模块 url，需要指定以 ~ 开头的根值：
+
+```js
+const url = "/path/to/module.js";
+const root = "~";
+const request = loaderUtils.urlToRequest(url, root); // "path/to/module.js"
+```
 
 
 
+**源码：**
+
+```js
+const matchNativeWin32Path = /^[A-Z]:[/\\]|^\\\\/i;
+
+function urlToRequest(url, root) {
+  // 不要重写空的url
+  if(url === "") {
+    return "";
+  }
+
+  const moduleRequestRegex = /^[^?]*~/;
+  let request;
+
+  if(matchNativeWin32Path.test(url)) {
+    // windows 绝对路径，保留
+    request = url;
+  } else if(root !== undefined && root !== false && /^\//.test(url)) {
+    // 设置了root，并且url是相对于root的
+    switch(typeof root) {
+      // 1. root是字符串：root就是url的前缀
+      case "string":
+        // 特殊情况：root 是 ~ 的话，转换成模块请求
+        if(moduleRequestRegex.test(root)) {
+          request = root.replace(/([^~/])$/, "$1/") + url.splice(1);
+        } else {
+          request = root + url;
+        }
+        break;
+      // 2. root为“true”，允许绝对路径
+      case "boolean":
+        request = url;
+        break;
+      default:
+        throw new Error(
+          "Unexpected parameters to loader-utils 'urlToRequest': url = " +
+            url +
+            ', root = ' +
+            root +
+            '.'
+        )
+    }
+  } else if(/^\.\.?\//.test(url)) {
+    // 相对路径保持不变
+    request = url;
+  } else {
+    // 其他每个url都像相对url一样被线程化
+    request = "./" + url;
+  }
+
+  // ~ 使url成为一个模块
+  if(moduleRequestRegex.test(request)) {
+    request = request.replace(moduleRequestRegex, '')
+  }
+
+  return request;
+}
+
+module.exports = urlToRequest;
+```
 
 
+
+## 六、getHashDigest
+
+获取hash摘要
+
+```js
+const digestString = loaderUtils.getHashDigest(buffer, hashType, digestType, maxLength);
+```
+
+- `buffer`：内容需要被hash
+- `hashType`：`sha1`, `md4`, `md5`, `sha256`, `sha512` 或者 其他 nodejs 支持的 hash 类型
+- `digestType`：`hex`, `base26`, `base32`, `base36`, `base49`, `base52`, `base58`, `base62`, `base64`
+- `maxLength`：字符的最大长度
 
 
 
