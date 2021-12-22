@@ -561,7 +561,7 @@ module.exports = urlToRequest;
 
 
 
-## 六、getHashDigest
+## 六、getHashDigest（暂时不懂）
 
 获取hash摘要
 
@@ -573,6 +573,353 @@ const digestString = loaderUtils.getHashDigest(buffer, hashType, digestType, max
 - `hashType`：`sha1`, `md4`, `md5`, `sha256`, `sha512` 或者 其他 nodejs 支持的 hash 类型
 - `digestType`：`hex`, `base26`, `base32`, `base36`, `base49`, `base52`, `base58`, `base62`, `base64`
 - `maxLength`：字符的最大长度
+
+```js
+const baseEncodeTables = {
+  26: 'abcdefghijklmnopqrstuvwxyz',
+  32: '123456789abcdefghjkmnpqrstuvwxyz', // no 0lio
+  36: '0123456789abcdefghijklmnopqrstuvwxyz',
+  49: 'abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ', // no lIO
+  52: 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
+  58: '123456789abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ', // no 0lIO
+  62: '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ',
+  64: '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ-_',
+};
+
+function encodeBufferToBase(buffer, base) {
+  const encodeTable = baseEncodeTables[base];
+  if (!encodeTable) {
+    throw new Error('Unknown encoding base' + base);
+  }
+
+  const readLength = buffer.length;
+  const Big = require('big.js');
+
+  Big.RM = Big.DP = 0;
+  let b = new Big(0);
+
+  for (let i = readLength - 1; i >= 0; i--) {
+    b = b.times(256).plus(buffer[i]);
+  }
+
+  let output = '';
+  while (b.gt(0)) {
+    output = encodeTable[b.mod(base)] + output;
+    b = b.div(base);
+  }
+
+  Big.DP = 20;
+  Big.RM = 1;
+
+  return output;
+}
+
+let createMd4 = undefined;
+
+function getHashDigest(buffer, hashType, digestType, maxLength) {
+  hashType = hashType || 'md4';
+  maxLength = maxLength || 9999;
+
+  let hash;
+
+  try {
+    hash = require('crypto').createHash(hashType);
+  } catch (error) {
+    if (error.code === 'ERR_OSSL_EVP_UNSUPPORTED' && hashType === 'md4') {
+      if (createMd4 === undefined) {
+        createMd4 = require('./hash/md4');
+      }
+
+      hash = createMd4();
+    }
+
+    if (!hash) {
+      throw error;
+    }
+  }
+
+  hash.update(buffer);
+
+  if (
+    digestType === 'base26' ||
+    digestType === 'base32' ||
+    digestType === 'base36' ||
+    digestType === 'base49' ||
+    digestType === 'base52' ||
+    digestType === 'base58' ||
+    digestType === 'base62' ||
+    digestType === 'base64'
+  ) {
+    return encodeBufferToBase(hash.digest(), digestType.substr(4)).substr(
+      0,
+      maxLength
+    );
+  } else {
+    return hash.digest(digestType || 'hex').substr(0, maxLength);
+  }
+}
+
+module.exports = getHashDigest;
+```
+
+
+
+## 七、interpolateName
+
+使用多个占位符或正则表达式插入文件名模板。模板和正则表达式在当前加载程序的上下文中设置名为 name 和 regExp 的查询参数。
+
+```js
+const interpoliatedName = loaderUtils.interpolateName(loaderContext, name, options);
+```
+
+在name参数中，以下标记会被替换
+
+- `[ext]`：资源的扩展名
+- `[name]`：资源的基础名称
+- `[path]`：资源相较于上下文的相对路径或选项的路径
+- `[folder]`：资源所在的文件夹
+- `[query]`：参数，例如： ?foo=bar
+- `[emoji]`：`options.content`中的随机emoji表情
+- `[emoji:<length>]`：与上面相同，但具有可定制数量的表情符号
+- `[contenthash]`：内容的hash（默认情况下是md4哈希的16进制摘要）
+- `[<hashType>:contenthash:<digestType>:<length>]`：可以选择配置
+  - `hashType`：sha1、md4、md5、sha256、sha512
+  - `digestType`：hex、base26、base32、base36、base49、base52、base58、base62、base64
+  - `length`：字符的长度
+- `[hash]`：选项的hash。
+- `[hashType]:hash:<digestType>:<length>`：选项配置，同上
+- `[N]`：正则表达式。通过将当前文件名与选项匹配而获得的第N个匹配项。
+
+
+
+**在 loader 上下文中，[hash]和[contenthash] 是相同的，但我们建议使用 [contenthash] 以避免误导**
+
+- 使用示例
+
+```js
+// loaderContext.resourcePath = "/absolute/path/to/app/js/javascript.js"
+loaderUtils.interpolateName(loaderContext, "js/[hash].script.ext", { content: ... });
+// => js/9473fdd0d880a43c21b7778d34872157.script.js
+
+// loaderContext.resourcePath = "/absolute/path/to/app/js/javascript.js"
+// loaderContext.resourceQuery = "?foo=bar"
+loaderUtils.interpolateName(loaderContext, "js/[hash].script.[ext][query]", { content: ... });
+// => js/9473fdd0d880a43c21b7778d34872157.script.js?foo=bar
+
+// loaderContext.resourcePath = "/absolute/path/to/app/js/javascript.js"
+loaderUtils.interpolateName(loaderContext, "js/[contenthash].script.[ext]", { content: ... });
+// => js/9473fdd0d880a43c21b7778d34872157.script.js
+
+// loaderContext.resourcePath = "/absolute/path/to/app/page.html"
+loaderUtils.interpolateName(loaderContext, "html-[hash:6].html", { content: ... });
+// => html-9473fd.html
+
+// loaderContext.resourcePath = "/absolute/path/to/app/flash.txt"
+loaderUtils.interpolateName(loaderContext, "[hash]", { content: ... });
+// => c31e9820c001c9c4a86bce33ce43b679
+
+// loaderContext.resourcePath = "/absolute/path/to/app/img/image.gif"
+loaderUtils.interpolateName(loaderContext, "[emoji]", { content: ... });
+// => 👍
+
+// loaderContext.resourcePath = "/absolute/path/to/app/img/image.gif"
+loaderUtils.interpolateName(loaderContext, "[emoji:4]", { content: ... });
+// => 🙍🏢📤🐝
+
+// loaderContext.resourcePath = "/absolute/path/to/app/img/image.png"
+loaderUtils.interpolateName(loaderContext, "[sha512:hash:base64:7].[ext]", { content: ... });
+// => 2BKDTjl.png
+// use sha512 hash instead of md4 and with only 7 chars of base64
+
+// loaderContext.resourcePath = "/absolute/path/to/app/img/myself.png"
+// loaderContext.query.name =
+loaderUtils.interpolateName(loaderContext, "picture.png");
+// => picture.png
+
+// loaderContext.resourcePath = "/absolute/path/to/app/dir/file.png"
+loaderUtils.interpolateName(loaderContext, "[path][name].[ext]?[hash]", { content: ... });
+// => /app/dir/file.png?9473fdd0d880a43c21b7778d34872157
+
+// loaderContext.resourcePath = "/absolute/path/to/app/js/page-home.js"
+loaderUtils.interpolateName(loaderContext, "script-[1].[ext]", { regExp: "page-(.*)\\.js", content: ... });
+// => script-home.js
+
+// loaderContext.resourcePath = "/absolute/path/to/app/js/javascript.js"
+// loaderContext.resourceQuery = "?foo=bar"
+loaderUtils.interpolateName(
+  loaderContext, 
+  (resourcePath, resourceQuery) => { 
+    // resourcePath - `/app/js/javascript.js`
+    // resourceQuery - `?foo=bar`
+
+    return "js/[hash].script.[ext]"; 
+  }, 
+  { content: ... }
+);
+// => js/9473fdd0d880a43c21b7778d34872157.script.js
+```
+
+源码：
+
+```js
+const path = require('path');
+const emojisList = require('emojis-list');
+const getHashDigest = require('./getHashDigest');
+
+const emojiRegex = /[\uD800-\uDFFF]./;
+const emojiList = emojisList.filter(emoji => emojiRegex.test(emoji));
+const emojiCache = {};
+
+function encodeStringToEmoji(content, length) {
+  if(emojiCache[content]) {
+    return emojiCache[content];
+  }
+
+  length = length || 1;
+
+  const emojis = [];
+
+  do {
+    if(!emojiList.length) {
+      throw new Error('Ran out of emoji');
+    }
+
+    const index = Math.floor(Math.random() * emojiList.length);
+
+    emojis.push(emojisList[index]);
+    emojisList.splice(index, 1);
+  } while (--length > 0)
+
+  const emojiEncoding = emojis.join('');
+
+  emojiCache[content] = emojiEncoding;
+
+  return emojiEncoding;
+}
+
+function interpolateName(loaderContext, name, options) {
+  let filename;
+
+  const hasQuery = loaderContext.resourceQuery && loaderContext.resourceQuery.length > 1;
+
+  if(typeof name === 'function') {
+    filename = name(
+      loaderContext.resourcePath,
+      hasQuery ? loaderContext.resourceQuery : undefined
+    );
+  } else {
+    filename = name || '[hash].[ext]';
+  }
+
+  const context = options.context;
+  const content = options.content;
+  const regExp = options.regExp;
+
+  let ext = 'bin';
+  let basename = 'file';
+  let directory = '';
+  let folder = '';
+  let query = '';
+
+  if(loaderContext.resourcePath) {
+    let resourcePath = loaderContext.resourcePath;
+    // path.parse：返回一个对象，其属性表示 path 的重要元素。
+    const parsed = path.parse(resourcePath);
+		// 处理后缀
+    if(parsed.ext) {
+      ext = parsed.ext.substring(1);
+    }
+		// 处理文件夹路径
+    if(parsed.dir) {
+      basename = parsed.name;
+      // path.sep：提供特定于平台的路径片段分隔符（windows \）（posix /）
+      resourcePath = parsed.dir + path.sep;
+    }
+
+    if(typeof context !== 'undefined') {
+      directory = path
+        .relative(context, resourcePath + '_')
+        .replace(/\\/g, '/')
+        .replace(/\.\.(\/)?/g, '_$1');
+      directory = directory.substring(0, directory.length - 1);
+    } else {
+      directory = resourcePath.replace(/\\/g, '/').replace(/\.\.(\/)?/g, '_$1');
+    }
+
+    if(directory.length === 1) {
+      directory = '';
+    } else if(directory.length > 1) {
+      folder = path.basename(directory);
+    }
+  }
+
+  if(loaderContext.resourceQuery && loaderContext.resourceQuery.length > 1) {
+    query = loaderContext.resourceQuery;
+
+    const hashIdx = query.indexOf('#');
+
+    if(hashIdx >= 0) {
+      query = query.substring(0, hashIdx);
+    }
+  }
+
+  let url = filename;
+
+  if(content) {
+    // hash 和 contenthash在loader-utils上下文中是相同的
+    // 为了向后兼容，让我们保留hash
+    url = url
+      .replace(
+        /\[(?:([^:\]]+):)?(?:hash|contenthash)(?::([a-z]+\d*))?(?::(\d+))?\]/gi,
+        (all, hashType, digestType, maxLength) => getHashDigest(content, hashType, digestType, parseInt(maxLength, 10))
+      )
+      .replace(/\[emoji(?::(\d+))?\]/gi, (all, length) => encodeStringToEmoji(content, parseInt(length, 10)));
+  }
+
+  url = url
+    .replace(/\[ext\]/gi, () => ext)
+    .replace(/\[name\]/gi, () => basename)
+    .replace(/\[path\]/gi, () => directory)
+    .replace(/\[folder\]/gi, () => folder)
+    .replace(/\[query\]/gi, () => query)
+  
+  if(regExp && loaderContext.resourcePath) {
+    const match = loaderContext.resourcePath.match(new RegExp(regExp));
+
+    match &&
+      match.forEach((matched, i) => {
+        url = url.replace(new RegExp('\\[' + i + '\\]', 'ig'), matched);
+      });
+  }
+
+  if(typeof loaderContext.options === 'object' && typeof loaderContext.options.customInterpolateName === 'function') {
+    url = loaderContext.options.customInterpolateName.call(
+      loaderContext,
+      url,
+      name,
+      options
+    )
+  }
+  
+  return url;
+}
+
+module.exports = interpolateName;
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
