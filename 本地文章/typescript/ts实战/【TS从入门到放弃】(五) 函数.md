@@ -10,7 +10,7 @@ function add(a: number, b: number): number {
 const add = (a: number, b: number): number => a + b;
 ```
 
-有时一个库会有回调函数，我们会对回调函数有一定要求
+制作一个库有时会有**回调函数**，我们会对**回调函数**有一定要求
 
 接下来我们来看一个完整的函数类型
 
@@ -114,6 +114,7 @@ function handleData(x: any): any {
   }
 }
 handleData('abc'); // ['a', 'b', 'c']
+handleData('abc').map(item => item.toFixed()); // Error：属性“toFixed”在类型“string”上不存在。
 handleData(123); // [1, 2, 3]
 ```
 
