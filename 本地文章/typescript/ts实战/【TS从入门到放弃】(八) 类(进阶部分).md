@@ -1,12 +1,12 @@
 # TS从入门到放弃【八】：类（进阶部分）
 
-本章为**es6中class**的继承部分，如已熟练使用可以跳过本章。
+本章为**es6中class**的进阶部分，如已熟练使用可以跳过本章。
 
 在 ts 中使用 class 的地方很多，并且class作为es6基础也有很多知识点，这里单独提出一章来细讲 class。
 
 
 
-### es5的继承
+### 1、es5的继承
 
 在es5中如果想实现一个构造函数的继承，是需要修改原型链的。
 
@@ -36,7 +36,7 @@ console.log(tomato.getType()); // food
 
 
 
-### es6类的继承
+### 2、es6类的继承
 
 es6中的类实际上是构造函数的语法糖。es6的类转换成es5后还是类似上面es5代码的构造函数。
 
@@ -117,7 +117,7 @@ console.log(Object.getPrototypeOf(Child) === Parent); // true
 
 
 
-### super
+### 3、super
 
 super即可以作为函数使用，又可以作为对象使用。
 
@@ -237,7 +237,7 @@ child.childPrint(); // child
 
 
 
-### `prototype` 和 `__proto__`
+### 4、`prototype` 和 `__proto__`
 
 `__proto__` 不是es标准中定义的属性，而是大多数浏览器厂商在对 es5 的实现中添加的。
 
