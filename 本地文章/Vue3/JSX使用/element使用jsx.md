@@ -153,6 +153,19 @@ export default defineComponent({
 
 
 
+### 5、el-table中用到的 scopedSlots
+
+```tsx
+<el-table-column label="操作" width="100" scopedSlots={{ default: (scope) => (
+  <div>
+    <span style="color: #3786FD; cursor: pointer;" onClick={() => this.tableHandler(scope.row)}>选择</span>
+  </div>
+) }}>
+</el-table-column>
+```
+
+
+
 
 
 
