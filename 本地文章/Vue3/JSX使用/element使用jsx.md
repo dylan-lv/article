@@ -62,18 +62,67 @@ render(h) {
 使用 jsx
 
 ```tsx
-<el-dialog
-	title="详情"
-  on={{ ['update:visible']: this.visibleShow }}
-  visible={this.visible}
-  width="700px"
-  append-to-body
->
-</el-dialog>
+// 父组件
+export default defineComponent({
+  setup() {
+    const visible = ref(false)
+    // 显示详情
+    const dialogShowHandler = (flag) => {
+      visible.value = flag
+    }
+    
+    setTimeout(() => { // 两秒后显示dialog
+      visible.value = true;
+    }, 2000)
 
-visibleShow() {
-  this.visible = true;
-}
+    return { visible, dialogShowHandler }
+  },
+  render() {
+    return (
+      <ContentWarnInfoDetail 
+        visible={this.visible}
+        on={{
+          ['update:visible']: this.dialogShowHandler
+        }}
+      />
+    )
+  }
+})
+```
+
+
+
+```tsx
+// 子组件
+export default defineComponent({
+  props: {
+    visible: {
+      type: Boolean,
+      default: false
+    }
+  },
+  setup(props, {emit}) {
+    const handleClose = () => {
+      emit('update:visible', false)
+    }
+    return { handleClose }
+  },
+  render() {
+    return (
+      <el-dialog
+        title="提示"
+        visible={this.visible}
+        width="700px"
+        append-to-body
+        before-close={this.handleClose}>
+        <span>这是一段信息</span>
+        <span slot="footer" class="dialog-footer">
+          <el-button onClick={this.handleClose}>关闭</el-button>
+        </span>
+      </el-dialog>
+    )
+  }
+})
 ```
 
 
