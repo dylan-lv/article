@@ -28,13 +28,22 @@ export default defineComponent({
 
 ```jsx
 render(h) {
+  const rules = {
+      idNumber: [
+        {
+          pattern: /(^[1-9]\d{5}(18|19|([23]\d))\d{2}((0[1-9])|(10|11|12))(([0-2][1-9])|10|20|30|31)\d{3}[0-9Xx]$)|(^[1-9]\d{5}\d{2}((0[1-9])|(10|11|12))(([0-2][1-9])|10|20|30|31)\d{2}$)/,
+          message: '证件号码格式有误！',
+          trigger: 'blur'
+        }
+      ]
+    }
 	return (
   	<el-form
     	ref="form"
     	props={{ model: this.data }} // 注意:model要改成这样写
-  		rules={this.rules}>
-    	<el-form-item label="名称" prop="name">
-        <el-input v-model={this.form.name}></el-input>
+  		rules={rules}>
+    	<el-form-item label="名称" prop="name" label-width="120px">
+        <el-input v-model={this.form.name} style="width: 200px;" placeholder="请输入" clearable></el-input>
         // 或者
         <el-input value={this.form.name} onInput={value => this.form.name = value}></el-input>
       </el-form-item>
@@ -85,6 +94,8 @@ export default defineComponent({
           ['update:visible']: this.dialogShowHandler
         }}
       />
+      // 或者
+      <EnableDialog visible={this.enableVisible} on={{ ['update:visible']: flag => this.enableVisible = flag }} />
     )
   }
 })
