@@ -1,4 +1,4 @@
 ```bash
- degit dylan-lv/vites vue-minesweeper
+ degit hayeslv/vites vue-minesweeper
 ```
 
