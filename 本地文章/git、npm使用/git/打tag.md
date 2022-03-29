@@ -1,4 +1,4 @@
-# gti打tag
+gti打tag
 
 通常在发布版本的时候给 `git` 打一个 `tag`，`tag`可以记录版本的 `commit`，方便后面回溯
 
