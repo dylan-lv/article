@@ -1,6 +1,6 @@
-# 运行 `npm run xxx` 的时候发生了什么？
+# 运行 `npm run xxx` 的时候发生了什么
 
-- `npm run xxx` 的时候，发生了什么？讲的越详细越好。
+`npm run xxx`相信大家都经常用，但是 `npm run` 究竟发生了什么呢，它又是如何执行的呢，让我们来解开迷雾。
 
 初步： `npm run xxx` 的时候，首先回去项目的 `package.json` 文件里找 `scripts` 中对应的 `xxx` 命令。例如启动 `vue` 项目 `npm run serve` 的时候，实际上就是执行了 `vue-cli-service serve` 这条命令。
 
