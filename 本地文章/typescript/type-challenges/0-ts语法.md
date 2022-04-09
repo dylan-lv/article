@@ -67,6 +67,19 @@ type r = TupleToObject<typeof tuple> // type r = { tesla: "tesla"; "model 3": "m
 
 
 
+## 获取数组中不存在的下标
+
+此时返回 `undefined`
+
+```ts
+type First<T extends any[]> = T[0]
+type t0 = First<[]> // type t0 = undefined
+```
+
+
+
+
+
 
 
 
