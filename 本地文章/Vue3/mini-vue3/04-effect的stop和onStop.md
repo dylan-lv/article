@@ -1,6 +1,6 @@
 # effect的stop和onStop
 
-这一节我们来实现 `effect` 的 `stop` 和 `onStop` 功能
+实现 `effect` 的 `stop` 和 `onStop` 功能
 
 ## stop
 
@@ -65,11 +65,12 @@ export function trigger(target, key) {
 ### （1）stop方法
 
 - 接收一个runner函数
-- `runner` 函数上需要挂载 `effect`
+- `runner` 函数上需要挂载 `effect`（通过 `runner` 获取 `effect`）
 - 执行 `effect` 的 `stop` 方法
 
 ```ts
 export function stop(runner) {
+  // 接收的runner，就是effect返回出来的runner
   runner.effect.stop();
 }
 ```
@@ -179,7 +180,7 @@ function cleanupEffect(effect) {
 }
 ```
 
-- 性能问题：可能会频繁调用stop，给个状态后，即使外部多次调用stop，也只会清空一次
+- 性能问题：用户可能会频繁调用stop，给个 `active` 状态后，即使外部多次调用stop，也只会清空一次
 
 ```ts
 class ReactiveEffect {

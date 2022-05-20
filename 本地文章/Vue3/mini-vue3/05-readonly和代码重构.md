@@ -24,6 +24,8 @@ describe("readonly", () => {
 });
 ```
 
+- `readonly` 和 `reactive` 很相似，不同的地方在于 `readonly` 不可以被改写（`set`），它是**只读**的
+
 
 
 ### 实现readonly
@@ -134,7 +136,7 @@ export function readonly(raw) {
 
 ```ts
 // \reactivity\baseHandlers.ts
-function createGetter(isReadonly = false) {
+function createGetter(isReadonly = false) { // 利用高阶函数区分是否是 readonly
   return function get(target, key) {
     const res = Reflect.get(target, key);
     if (!isReadonly) {

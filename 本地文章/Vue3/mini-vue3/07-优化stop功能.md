@@ -24,7 +24,7 @@ it("stop", () => {
 
 这里我们之前实现的是，给 `obj.prop` 赋值 3，`effect的fn`也不会触发，`dummy` 依旧是 2
 
-现在我们尝试用另外一种方式给 `obj.prop` 赋值 
+现在我们尝试用**另外一种方式**给 `obj.prop` 赋值 
 
 ```ts
 it("stop", () => {
@@ -35,7 +35,7 @@ it("stop", () => {
 });
 ```
 
-此时可以看到测试失败了。
+此时可以看到测试失败了。我们之前的 `obj.prop = 3` 实际上只涉及到了 `set` 操作
 
 `obj.prop++` 其实是两个操作，先 `get obj.prop`，再 `set obj.prop + 1`，也就是说，比之前多了一个 get 操作
 
@@ -132,6 +132,7 @@ export function track(target, key) {
     depsMap.set(key, dep);
   }
 
+  // !避免重复依赖收集
   if (dep.has(activeEffect)) return;
   dep.add(activeEffect);
   activeEffect.deps.push(dep);

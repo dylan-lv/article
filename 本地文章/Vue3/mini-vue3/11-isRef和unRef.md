@@ -45,6 +45,8 @@ class RefImpl {
 
 后续进行判断是否是 `ref` 的时候（isRef），就可以使用这个标识了
 
+如果是一个**普通值**，则 `ref.__v_isRef` 会返回 `undefined` ，我们使用 `!!` 对其进行转换
+
 ```ts
 // reactivity\ref.ts
 export function isRef(ref) {

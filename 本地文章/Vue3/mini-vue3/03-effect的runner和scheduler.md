@@ -5,7 +5,7 @@
 ## 一、runner
 
 - 调用effect（fn）之后，其实是会返回一个 function（runner） 的
-- 当调用 function 时会再次调用用户传给 effect 的 fn 函数 
+- 当调用 function（runner） 时会再次调用用户传给 effect 的 fn 函数 
 - 调用 fn 的时候会把 fn 的返回值返回出去
 
 添加测试代码
@@ -25,7 +25,7 @@ describe("effect", () => {
     // 调用 runner 函数的时候，可以拿到返回值 r；并且fn也应该被执行了
     const r = runner();
     expect(foo).toBe(12); // 验证内部函数fn，是否被执行了
-    expect(r).toBe("fooo");
+    expect(r).toBe("fooo"); // 验证对应的返回值
   });
 })
 ```
@@ -58,7 +58,9 @@ export function effect(fn, options: any = {}) {
 
 ## 二、scheduler
 
-我们先来看一下单测
+我们先来看一下单测 
+
+`src\reactivity\tests\effect.spec.ts`
 
 ```ts
 it("scheduler", () => {

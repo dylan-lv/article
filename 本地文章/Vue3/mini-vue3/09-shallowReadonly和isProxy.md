@@ -64,7 +64,6 @@ function createGetter(isReadonly = false, shallow = false) {
       return res;
     }
 
-    // 处理嵌套逻辑：看看 res 是不是一个 object
     if (isObject(res)) {
       return isReadonly ? readonly(res) : reactive(res);
     }

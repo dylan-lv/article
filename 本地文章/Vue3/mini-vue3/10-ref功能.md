@@ -51,8 +51,8 @@ it("should be reactive", () => {
     dummy = a.value;
   });
   
-  expect(dummy).toBe(1); // 说明effect调用了一次
-  expect(calls).toBe(1); // 说明获取到了a.value的值
+  expect(calls).toBe(1); // 说明effect调用了一次
+  expect(dummy).toBe(1); // 说明获取到了a.value的值
 
   a.value = 2; // 把它变成 2 的之后，下面两个值都需要改变
   expect(calls).toBe(2);
@@ -76,7 +76,7 @@ it("should be reactive", () => {
 ```ts
 class RefImpl {
   private _value: any;
-  public dep;
+  public dep; // 声明 dep，用来存储 effect
   constructor(value) {
     this._value = value;
     this.dep = new Set(); // 初始化一下，dep对象是一个 Set
@@ -260,6 +260,8 @@ it("should make nested properties reactive", () => {
 ```
 
 ### 判断 value 是否是对象
+
+在 ` ref` 中如果传入的是一个对象，那就将其转换成 `reactive` 类型的数据
 
 ```ts
 class RefImpl {

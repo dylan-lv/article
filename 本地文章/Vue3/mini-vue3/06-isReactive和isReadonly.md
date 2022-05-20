@@ -1,6 +1,6 @@
 # isReactive和isReadonly
 
-### isReactive
+### isReactive：判断这个对象是否是 reactive 类型
 
 我们首先补一下测试
 
@@ -28,7 +28,7 @@ describe("reactive", () => {
 ```ts
 // reactivity\reactive.ts
 export function isReactive(value) {
-  return value["is_reactive"];
+  return value["is_reactive"]; // 主动触发 reactive 数据的 get
 }
 // reactivity\baseHandlers.ts
 function createGetter(isReadonly = false) {
