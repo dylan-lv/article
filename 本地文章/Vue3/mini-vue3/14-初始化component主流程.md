@@ -1,4 +1,4 @@
-# 初始化component主流程
+#  初始化component主流程
 
 目的，将下面的代码 run 起来
 
@@ -49,7 +49,7 @@ export const App = {
 
 思维导图如下：
 
-<img src=".\assets\2.png" alt="2" style="zoom:50%;" />
+<img src=".\assets\2.png" alt="2"  />
 
 
 
@@ -107,7 +107,7 @@ export function createVNode(type, props?, children?) {
 ```ts
 // runtime-core/render.ts
 export function render(vnode, container) {
-  patch(vnode, container);
+  patch(vnode, container); // 方便后续的递归处理
 }
 ```
 
@@ -166,6 +166,7 @@ export function setupComponent(instance){
   // TODO initProps
   // TODO initSlots
   // 处理component调用setup之后的返回值（初始化一个有状态的component）
+  // 无状态的conponent是“函数组件”
   setupStatefulComponent(instance)
 }
 ```
@@ -198,6 +199,7 @@ function setupStatefulComponent(instance) {
     // Object：会把Object对象注入到当前组件上下文中
     const setupResult = setup()
 
+    // 处理setup的结果
     handleSetupResult(instance, setupResult)
   }
 }
@@ -207,8 +209,11 @@ function setupStatefulComponent(instance) {
 
 ```ts
 function handleSetupResult(instance, setupResult) {
+  // 基于上述的两种情况（setup可能会返回function或object）来做实现
+  
   // TODO function
   if(typeof setupResult === "object") {
+    // 将对应的值赋值到组件实例上
     instance.setupState = setupResult
   }
   // 保证组件的 render 一定是有值的
@@ -222,6 +227,7 @@ function handleSetupResult(instance, setupResult) {
 function finishComponentSetup(instance) {
   const Component = instance.type
   if(Component.render) {
+    // 将组件上的render函数赋值给instance实例
     instance.render = Component.render
   }
 }
@@ -242,8 +248,9 @@ function mountComponent(vnode, container) {
 
 ```ts
 function setupRenderEffect(instance, container) {
-  // 虚拟节点树
+  // 获取render函数的返回值（返回的是组件的虚拟节点树）
   const subTree = instance.render()
+  // 基于返回的虚拟节点，对其进行patch比对（打补丁）
   patch(subTree, container)
 }
 ```

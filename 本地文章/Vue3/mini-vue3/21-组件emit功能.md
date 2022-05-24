@@ -5,11 +5,35 @@
 ## 测试
 
 ```js
-// Foo.js
+// example/componentEmit/App.js
+import { h } from '../../lib/guide-mini-vue.esm.js'
+import { Foo } from './Foo.js';
+
+export const App = {
+  name: "App",
+  render() {
+    return h("div", {}, [
+      h("div", {}, "APP"),
+      h(Foo, {})
+    ])
+  },
+  setup() {
+    return {}
+  }
+}
+```
+
+
+
+```js
+// example/componentEmit/Foo.js
+import { h } from "../../lib/guide-mini-vue.esm.js";
 export const Foo = {
   setup(props) {
     const emitAdd = () => {
       console.log("emit add");
+      // emit("add", 1, 2)
+      // emit("add-foo", 1, 2)
     }
     return { emitAdd }
   },

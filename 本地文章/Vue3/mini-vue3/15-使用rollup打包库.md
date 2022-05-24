@@ -87,7 +87,7 @@ export default {
 export { createApp } from "./createApp";
 
 // src/index.ts
-export * from "./runtime-core/index";
+export * from "./runtime-core";
 ```
 
 

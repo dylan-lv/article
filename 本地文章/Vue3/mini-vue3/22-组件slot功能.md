@@ -7,7 +7,7 @@
 export const App = {
   name: "App",
   render() {
-    const app = h("div", {}, "App
+    const app = h("div", {}, "App")
     const foo = h(Foo, {}, h("p", {}, "123"))
 
     return h("div", {}, [app, foo])
@@ -28,9 +28,9 @@ export const Foo = {
 }
 ```
 
-我们希望将 `App.js` 中 `foo` 里的 `h("p", {}, "123")` ，这个 `p` 标签添加到 `Foo.js` 组件内。
+我们希望将 `App.js` 中 `foo` 里的 `h("p", {}, "123")` ，这个 `p` 标签在 `Foo.js` 组件内显示出来。
 
-其实就是获取 `Foo` 组件的 `vnode` 中的 `children`
+其实就是获取 `Foo` 组件的 `vnode` 中的 `children`，然后把父组件的插槽（`h("p", {}, "123")`） 添加进去
 
 ```ts
 // Foo.js
@@ -44,6 +44,18 @@ export const Foo = {
     return h("div", {}, [foo, this.$slots]);
   }
 }
+```
+
+使用 `template` 写的话就是：
+
+```vue
+<template>
+	<div id="app">
+    <Foo>
+  		<p>123</p>
+  	</Foo>
+  </div>
+</template>
 ```
 
 

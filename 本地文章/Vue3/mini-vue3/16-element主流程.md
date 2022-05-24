@@ -22,8 +22,8 @@ function patch(vnode, container) {
 
 可以看到，打印出了两条数据：
 
-- `vnode` 是一个 `component` 类型，`vode` 的 `type` 就是一个 `Object`
-- `vnode` 是一个 `element` 类型，`vode` 的 `type` 就是一个 `String`
+- `vnode` 是一个 `component` 类型，`vnode` 的 `type` 就是一个 `Object`
+- `vnode` 是一个 `element` 类型，`vnode` 的 `type` 就是一个 `String`
 
 基于上面的特点，我们就可以区分 `component` 类型和 `element` 类型了
 
@@ -68,6 +68,9 @@ export const App = {
 function processElement(vnode, container) {
   // element 类型也分为 mount 和 update，这里先实现mount
   mountElement(vnode, container)
+  
+  // TODO 更新element
+  // updateElement()
 }
 ```
 
@@ -149,7 +152,7 @@ function mountElement(vnode, container) {
   if(typeof children === "string") {
     el.textContent = children
   }else if(Array.isArray(children)) {
-    // children 中每个都是 vnode，需要继续调用 patch，来判断是element类型还是component类型，并对齐初始化
+    // children 中每个都是 vnode，需要继续调用 patch，来判断是element类型还是component类型，并对其初始化
     children.forEach(v => patch(v, el))
   }
 
@@ -180,7 +183,7 @@ function mountElement(vnode, container) {
   if(typeof children === "string") {
     el.textContent = children
   }else if(Array.isArray(children)) {
-    // children.forEach(v => patch(v, el))
+    // 重构：children.forEach(v => patch(v, el))
     mountChildren(vnode, el)
   }
 
