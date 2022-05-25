@@ -29,7 +29,7 @@ export default {
       file: "lib/guide-mini-vue.esm.js"
     }
   ],
-  plugin: [
+  plugins: [
     // 需要把ts编译一下，rollup是不理解ts的
     typescript()
   ]
