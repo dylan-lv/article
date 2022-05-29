@@ -1,0 +1,21 @@
+```json
+{
+  "script": {
+    "dev": "vite serve src/packages/index/ --config ./vite.config.ts",
+    "preview": "vite serve src/packages/preview/ --config ./vite.config.ts",
+  }
+}
+```
+
+```ts
+// vote.config.ts
+build: {
+  rollupOptions: {
+    input: {
+      index: path.resolve(__dirname, "src/packages/index/index.html"),
+      preview: path.resolve(__dirname, "src/packages/preview/index.html"),
+    },
+  },
+},
+```
+
