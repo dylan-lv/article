@@ -157,6 +157,197 @@ const change = () => {
 
 
 
+## 源码解析
+
+### 一、对外暴露的  `KeepAlive` 组件
+
+```ts
+export const KeepAlive = KeepAliveImpl as any as {
+  __isKeepAlive: true
+  new (): {
+    $props: VNodeProps & KeepAliveProps
+  }
+}
+```
+
+这里可以看出，实际上的 `KeepAlive` 组件，是 `KeepAliveImpl` 实现的，`KeepAlive` 仅仅是对齐类型做了一些约束
+
+
+
+### 二、`KeepAliveImpl` 参数
+
+```ts
+const KeepAliveImpl: ComponentOptions = {
+  name: `KeepAlive`,
+  // 私有属性，标记该组件是一个KeepAlive组件
+  __isKeepAlive: true,
+  props: {
+    // 用于匹配需要缓存的组件
+    include: [String, RegExp, Array],
+    // 用于匹配不需要缓存的组件
+    exclude: [String, RegExp, Array],
+    // 用于设置缓存上限
+    max: [String, Number]
+  },
+  setup(props: KeepAliveProps, { slots }: SetupContext) {
+ 		// ...
+    return () => {
+      // 如果不存在默认插槽，则返回空
+      if(!slots.default) {
+        return null
+      }
+      // 获取子节点
+      const children = slots.default()
+      // 获取第一个子节点
+      const rawVNode = children[0]
+      // 返回原始虚拟节点
+      return rawVNode
+    }
+  }
+}
+```
+
+`KeepAliveImpl` 是一个对象，对象中的参数分别是
+
+- `name`：组件名
+- `__isKeepAlive`：辨别是否是 `keep-alive` 组件时使用
+- `props`：接收的参数
+- `setup` 中可以获取 `props`（接收的参数），以及 `slots`（插槽信息）
+  - 返回默认插槽中的虚拟节点
+
+结论：
+
+- `KeepAlive` 组件是一个**抽象组件**：组件中并没有 `template` 模板或者返回一个 `render` 函数
+- 在 `setup` 函数中，通过参数 `slots.default()` 获取 `KeepAlive` 的子组件列表
+- 返回第一个子组件的 `rawVnode`（虚拟节点），且仅支持缓存**第一个子节点**
+
+
+
+
+
+#### 1、 `KeepAliveProps`
+
+这里我们可以看到 `keep-alive` 组件接收三个可选参数，分别是 `include`（包含）、`exclude`（排除）、`max`（最大缓存数）
+
+```ts
+export interface KeepAliveProps {
+  include?: MatchPattern
+  exclude?: MatchPattern
+  max?: number | string
+}
+```
+
+`include` 和 `exclude` 的类型 `MatchPattern` 可以接收
+
+1. 纯字符串
+2. 正则规则
+3. 字符串和正则规则组成的数组
+
+```ts
+type MatchPattern = string | RegExp | (string | RegExp)[]
+```
+
+
+
+### 三、setup
+
+#### 1、生成 `cache` 和 `keys`
+
+- `cache`：映射**缓存组件**的 `key: VNode`
+- `keys` ：记录当前被缓存的 `VNode` 的 `key`
+
+```ts
+const KeepAliveImpl: ComponentOptions = {
+ 	setup(props: KeepAliveProps, { slots }: SetupContext) {
+    // 获取组件实例
+    const instance = getCurrentInstance()!;
+    // 获取实例上下文
+    const sharedContext = instance.ctx as KeepAliveContext;
+    // 缓存VNode
+    const cache: Cache = new Map();
+    // 记录被缓存的VNode的key
+    const keys: Keys = new Set();
+    // 当前组件
+    let current: VNode | null = null
+  }
+}
+```
+
+
+
+#### 2、watch
+
+当 `include` 或 `exclude` 发生变化的时候，调整 `cache` 和 `keys` 中的内容
+
+`name => matches(include, name)`：如果 `name` 匹配上了，则返回 `true`，否则返回 `false`
+
+`name => !matches(exclude, name)`：如果 `name` 匹配上了，则返回 `false`，否则返回 `true`
+
+```ts
+watch(
+  () => [props.include, props.exclude], // 监听 include 和 exclude
+  ([include, exclude]) => {
+    include && pruneCache(name => matches(include, name))
+    exclude && pruneCache(name => !matches(exclude, name))
+  },
+  // flush-post，在DOM更新之后执行
+  { flush: 'post', deep: true }
+)
+```
+
+
+
+#### 3、matches
+
+判断参数1中是否存在参数2，返回一个 `bool` 值
+
+```ts
+function matches(pattern: MatchPattern, name: string): boolean {
+  if (isArray(pattern)) { // 如果是数组，则拿出数组中的每一项，继续递归调用 matches
+    return pattern.some((p: string | RegExp) => matches(p, name))
+  } else if (isString(pattern)) { // 如果是字符串，则根据逗号（,） 拆分，看看 name 是否包含在其中
+    return pattern.split(',').includes(name)
+  } else if (pattern.test) { // 如果是正则，则直接使用 test 检测
+    return pattern.test(name)
+  }
+  return false
+}
+```
+
+
+
+#### 4、pruneCache：修剪缓存
+
+参数 `filter` 是一个函数，接收 `name` 返回 `bool` 值
+
+`filter` 作用：当前 `name` 是否应该被缓存
+
+```ts
+function pruneCache(filter?: (name: string) => boolean) {
+  // 遍历缓存
+  cache.forEach((vnode, key) => {
+    // 获取组件名称
+    const name = getComponentName(vnode.type as ConcreteComponent)
+    // 组件名称存在，并且 没有过滤条件或没有通过过滤条件，则进行实际的修剪操作
+    if (name && (!filter || !filter(name))) {
+      pruneCacheEntry(key)
+    }
+  })
+}
+```
+
+将需要修剪的组件从缓存中删除
+
+```ts
+function pruneCacheEntry(key: CacheKey) {
+  // ...
+  cache.delete(key)
+  keys.delete(key)
+}
+```
+
+
+
 
 
 
