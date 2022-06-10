@@ -249,7 +249,7 @@ type MatchPattern = string | RegExp | (string | RegExp)[]
 
 
 
-### 三、setup
+### 三、setup中：添加或删除缓存组件
 
 #### 1、生成 `cache` 和 `keys`
 
@@ -346,6 +346,259 @@ function pruneCacheEntry(key: CacheKey) {
 }
 ```
 
+
+
+#### 5、setup 返回的内容
+
+```ts
+setup(props, { slots }) {
+  // ...
+  
+  // 正在操作的缓存组件的key
+  let pendingCacheKey: CacheKey | null = null
+  return () => {
+    pendingCacheKey = null
+    // 如果默认插槽中没有内容，则返回null
+    if (!slots.default) {
+      return null
+    }
+    // 默认插槽内组件
+    const children = slots.default()
+    // 第一个子组件
+		const rawVNode = children[0]
+    // 获取第一个子组件的 vnode
+    let vnode = getInnerChild(rawVNode)
+    // 组件对象
+    const comp = vnode.type
+    // 获取组件名称
+    const name = getComponentName(
+      isAsyncWrapper(vnode) // 对于异步组件，组件名称校验就应该基于被加载的组件
+        ? (vnode.type as ComponentOptions).__asyncResolved || {}
+        : comp
+    )
+    // 从props取出参数
+    const { include, exclude, max } = props
+    // 筛选VNode
+    if (
+      (include && (!name || !matches(include, name))) ||
+      (exclude && name && matches(exclude, name))
+    ) {
+      // include没有命中，或者exclude命中了，则直接返回
+      current = vnode
+      return rawVNode
+    }
+    const key = vnode.key == null ? comp : vnode.key
+    // 根据key，从缓存中获取 VNode
+    const cachedVNode = cache.get(key)
+    
+    if (cachedVNode) { // 如果拿出了cachedVNode，说明之前已经添加过了
+      // ...
+      
+      // 对其进行：先删除，然后再次添加（可以更新它在 Set 中的排序，没错，KeepAlive内部用的是LRU缓存淘汰算法）
+      keys.delete(key)
+      keys.add(key)
+    } else {
+      // 如果之前没有缓存，则直接添加
+      keys.add(key)
+      // 如果超过最大值了，则删除最旧的缓存
+      if (max && keys.size > parseInt(max as string, 10)) {
+        pruneCacheEntry(keys.values().next().value)
+      }
+    }
+  }
+}
+```
+
+
+
+### 四、构建缓存
+
+```ts
+const KeepAliveImpl = {
+  setup(props, { slots }) {
+    // 获取当前组件实例
+ 		const instance = getCurrentInstance()!;
+    // 获取当前实例上下文
+    const sharedContext = instance.ctx as KeepAliveContext;
+    // 服务端渲染方式
+    if (__SSR__ && !sharedContext.renderer) {
+      // ...
+    }
+    // 缓存
+    const cache: Cache = new Map()
+    const keys: Keys = new Set()
+    let current: VNode | null = null
+    // 渲染之后缓存子节点
+    let pendingCacheKey: CacheKey | null = null
+    const cacheSubtree = () => {
+      if (pendingCacheKey != null) {
+        cache.set(pendingCacheKey, getInnerChild(instance.subTree))
+      }
+    }
+    // 挂载和更新时，缓存组件
+    onMounted(cacheSubtree)
+    onUpdated(cacheSubtree)
+    return () => {
+     	pendingCacheKey = null
+      // 获取内部子节点
+      let vnode = getInnerChild(rawVNode)
+      // 获取子节点对象
+      const comp = vnode.type as ConcreteComponent
+      // 准备缓存需要的 key
+      const key = vnode.key == null ? comp : vnode.key
+      // 通过key获取vnode
+      const cachedVNode = cache.get(key)
+      // 更新 pendingCacheKey 
+      pendingCacheKey = key
+    }
+  }
+}
+```
+
+
+
+### 五、清空缓存
+
+```ts
+const KeepAliveImpl = {
+  setup(props, { slots }) {
+    // 卸载组件
+    function unmount(vnode: VNode) {
+      // reset the shapeFlag so it can be properly unmounted
+      resetShapeFlag(vnode)
+      _unmount(vnode, instance, parentSuspense, true)
+    }
+    // 卸载组件，卸载cache
+    onBeforeUnmount(() => {
+      // 遍历缓存
+      cache.forEach(cached => {
+        const { subTree, suspense } = instance
+        const vnode = getInnerChild(subTree)
+        if (cached.type === vnode.type) {
+          // current instance will be unmounted as part of keep-alive's unmount
+          resetShapeFlag(vnode)
+          // but invoke its deactivated hook here
+          const da = vnode.component!.da
+          da && queuePostRenderEffect(da, suspense)
+          return
+        }
+        // 清理缓存
+        unmount(cached)
+      })
+    })
+    
+  }
+}
+```
+
+
+
+### 六、`activated`和`deactivate` 钩子
+
+在 `Vue3` 中使用的方式：`onActivated` 和 `onDeactivated`
+
+```ts
+export function onActivated(
+  hook: Function,
+  target?: ComponentInternalInstance | null
+) {
+  registerKeepAliveHook(hook, LifecycleHooks.ACTIVATED, target)
+}
+export function onDeactivated(
+  hook: Function,
+  target?: ComponentInternalInstance | null
+) {
+  registerKeepAliveHook(hook, LifecycleHooks.DEACTIVATED, target)
+}
+```
+
+这里他们都调用了同一个方法 `registerKeepAliveHook` 来注册 `KeepAlive` 组件的钩子
+
+```ts
+const KeepAliveImpl = {
+  setup(props, { slots }) {
+    // 在组件上下文（ctx）上挂载activate钩子
+    sharedContext.activate = (vnode, container, anchor, isSVG, optimized) => {
+      const instance = vnode.component!;
+      // 移动节点
+      move(vnode, container, anchor, MoveType.ENTER, parentSuspense)
+      // 属性可能会发生改变，所以patch一下
+      patch(
+        instance.vnode,
+        vnode,
+        container,
+        anchor,
+        instance,
+        parentSuspense,
+        isSVG,
+        vnode.slotScopeIds,
+        optimized
+      )
+      // 后置任务池中添加任务
+      queuePostRenderEffect(() => {
+        // 非激活状态设为 false
+        instance.isDeactivated = false
+        if (instance.a) {
+          invokeArrayFns(instance.a)
+        }
+        const vnodeHook = vnode.props && vnode.props.onVnodeMounted
+        if (vnodeHook) {
+          invokeVNodeHook(vnodeHook, instance.parent, vnode)
+        }
+      }, parentSuspense)
+
+      if (__DEV__ || __FEATURE_PROD_DEVTOOLS__) {
+        // Update components tree
+        devtoolsComponentAdded(instance)
+      }
+    }
+    // 停止工作时
+    sharedContext.deactivate = (vnode: VNode) => {
+      const instance = vnode.component!
+      move(vnode, storageContainer, null, MoveType.LEAVE, parentSuspense)
+      queuePostRenderEffect(() => {
+        if (instance.da) {
+          invokeArrayFns(instance.da)
+        }
+        const vnodeHook = vnode.props && vnode.props.onVnodeUnmounted
+        if (vnodeHook) {
+          invokeVNodeHook(vnodeHook, instance.parent, vnode)
+        }
+        instance.isDeactivated = true
+      }, parentSuspense)
+
+      if (__DEV__ || __FEATURE_PROD_DEVTOOLS__) {
+        // Update components tree
+        devtoolsComponentAdded(instance)
+      }
+    }
+  }
+}
+```
+
+
+
+
+
+
+
+### 总结
+
+- 构建缓存
+  - `KeepAlive`的缓存构建，是在 `onMounted` 和 `onUpdated` 中通过 `cacheSubtree` 完成的
+  - 使用 `pendingCacheKey` 来记录 `pending` 状态下 `key`
+  - 如果组件的 `VNode` 之前被缓存过，则会更新 `keys` 中它的位置（LRU缓存淘汰算法）
+
+- 更新缓存、剪枝
+  - `cache` 和 `keys` 用于记录缓存组件的信息
+  - `pruneCache` 和 `pruneCacheEntry` 对缓存进行修剪。遍历 `cache`，对`cache` 和 `keys` 判断并操作
+  - `watch`：监听 `include` 和 `exclude` 的变化，并更新 `cache` 和 `keys`
+  - 条件筛选：`include` 没有命中，或者 `exclude` 命中了，则直接返回 `rawVNode`(原始vnode)，不会被缓存
+  - `max`：判断缓存数量是否已经超过了上限，如果超过，则会删除掉缓存中**最旧的** `vnode`
+
+- hooks
+  - `activated` 会移动节点并调用 `patch` 方法更新页面，向任务调度器的后置任务池中添加 `VNode` 的相关钩子
+  - `deactivated` 回移除 `VNode`，向任务调度器的后置任务池中卸载相关的 `VNode` 钩子
 
 
 
