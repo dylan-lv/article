@@ -54,7 +54,7 @@ render(h) {
 
 
 
-### 3、使用 .sync 修饰符
+### 3、ElDialog：使用 .sync 修饰符
 
 原版
 
@@ -135,6 +135,49 @@ export default defineComponent({
   }
 })
 ```
+
+#### slot
+
+```tsx
+// 父组件
+<CodeTypeDialog v-model:visible={this.visible}/>
+```
+
+```tsx
+// 子组件
+export default defineComponent({
+  props: {
+    visible: { type: Boolean, default: false },
+  },
+  emits: ["update:visible"],
+  setup(props, { emit }) {
+    const methods = {
+      close() {
+        emit("update:visible", false);
+      },
+    };
+    return { methods };
+  },
+  render() {
+    return (
+      <ElDialog
+        modelValue={this.visible}
+        closeOnClickModal={false}
+        appendToBody={true}
+        v-slots={{
+          footer: () => <div class="dialog-footer">
+            <ElButton onClick={this.methods.close}>取消</ElButton>
+          </div>,
+        }}
+      >
+        内容
+      </ElDialog>
+    );
+  },
+});
+```
+
+
 
 
 
